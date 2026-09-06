@@ -1,9 +1,9 @@
 import os
 import uuid
+import requests
 from pathlib import Path
 from pypdf import PdfReader
 from docx import Document
-from sentence_transformers import SentenceTransformer
 from pinecone import Pinecone, ServerlessSpec
 from dotenv import load_dotenv
 
@@ -80,15 +80,38 @@ def chunk_text(text: str, chunk_size: int = CHUNK_SIZE, overlap: int = CHUNK_OVE
     return chunks
 
 def create_embeddings(chunks):
-    model = SentenceTransformer(MODEL_NAME)
-
-    embeddings = model.encode(
-        chunks, 
-        normalize_embeddings=True, 
-        show_progress_bar=True
+    API_URL = (
+        "https://router.huggingface.co/"
+        "hf-inference/models/"
+        "sentence-transformers/all-MiniLM-L6-v2/"
+        "pipeline/feature-extraction"
     )
 
-    return embeddings.tolist()
+    headers = {
+        "Authorization": f"Bearer {os.getenv('HF_API_KEY')}",
+        "Content-Type": "application/json"
+    }
+
+    embeddings = []
+
+    for chunk in chunks:
+        response = requests.post(
+            API_URL,
+            headers=headers,
+            json={"inputs": chunk},
+            timeout=60
+        )
+
+        response.raise_for_status()
+
+        embedding = response.json()
+
+        if isinstance(embedding[0], list):
+            embedding = embedding[0]
+
+        embeddings.append(embedding)
+
+    return embeddings
 
 def get_index():
     pc = Pinecone(api_key=os.getenv("PINECONE_API_KEY"))

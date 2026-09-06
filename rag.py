@@ -1,23 +1,41 @@
 import os
+import requests
 from groq import Groq
 from pinecone import Pinecone
 from dotenv import load_dotenv
-from sentence_transformers import SentenceTransformer
 
 load_dotenv()
 
-MODEL_NAME ="sentence-transformers/all-MiniLM-L6-v2"
-
-print("Loading embedding model...")
-model = SentenceTransformer(MODEL_NAME)
-
 def embed_query(query: str):
-    embedding = model.encode(
-        query,
-        normalize_embeddings=True
+    API_URL = (
+        "https://router.huggingface.co/"
+        "hf-inference/models/"
+        "sentence-transformers/all-MiniLM-L6-v2/"
+        "pipeline/feature-extraction"
     )
 
-    return embedding.tolist()
+    headers = {
+        "Authorization": f"Bearer {os.getenv('HF_API_KEY')}",
+        "Content-Type": "application/json"
+    }
+
+    response = requests.post(
+        API_URL,
+        headers=headers,
+        json={
+            "inputs": query
+        },
+        timeout=60
+    )
+
+    response.raise_for_status()
+
+    embedding = response.json()
+
+    if isinstance(embedding[0], list):
+        embedding = embedding[0]
+
+    return embedding
 
 INDEX_NAME = os.getenv(
     "PINECONE_INDEX_NAME",
