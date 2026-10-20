@@ -7,6 +7,9 @@ from docx import Document
 from pinecone import Pinecone, ServerlessSpec
 from dotenv import load_dotenv
 
+from functools import lru_cache
+from fastembed import TextEmbedding
+
 load_dotenv()
 
 CHUNK_SIZE = 500
@@ -78,40 +81,25 @@ def chunk_text(text: str, chunk_size: int = CHUNK_SIZE, overlap: int = CHUNK_OVE
         start += chunk_size - overlap
 
     return chunks
-
-def create_embeddings(chunks):
-    API_URL = (
-        "https://router.huggingface.co/"
-        "hf-inference/models/"
-        "sentence-transformers/all-MiniLM-L6-v2/"
-        "pipeline/feature-extraction"
+@lru_cache(maxsize=1)
+def get_embedding_model():
+    return TextEmbedding(
+        model_name="sentence-transformers/all-MiniLM-L6-v2",
+        threads=1,
     )
 
-    headers = {
-        "Authorization": f"Bearer {os.getenv('HF_API_KEY')}",
-        "Content-Type": "application/json"
-    }
+def create_embeddings(chunks):
+    if not chunks:
+        return []
 
-    embeddings = []
+    model = get_embedding_model()
 
-    for chunk in chunks:
-        response = requests.post(
-            API_URL,
-            headers=headers,
-            json={"inputs": chunk},
-            timeout=60
-        )
+    embeddings = model.embed(
+        chunks,
+        batch_size=4,
+    )
 
-        response.raise_for_status()
-
-        embedding = response.json()
-
-        if isinstance(embedding[0], list):
-            embedding = embedding[0]
-
-        embeddings.append(embedding)
-
-    return embeddings
+    return [embedding.tolist() for embedding in embeddings]
 
 def get_index():
     pc = Pinecone(api_key=os.getenv("PINECONE_API_KEY"))

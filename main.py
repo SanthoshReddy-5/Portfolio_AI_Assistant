@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 from rag import ask_question
 
-app = FastAPI(title="Portfolio AI Assistant API", version="1.0.0")
+app = FastAPI(title="Portfolio AI Assistant", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
